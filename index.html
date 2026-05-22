@@ -502,9 +502,161 @@ function limpiar() {
   db.ref("votos").set({});
 }
 
-function exportarActa() {
-  alert("Exportando acta...");
-  // TODO: implementar exportación Word
+async function exportarActa() {
+  if (!db || !estadoActual) { alert("No hay datos de votación"); return; }
+  if (typeof docx === "undefined") { alert("La librería Word no cargó. Verifica tu conexión e intenta de nuevo."); return; }
+
+  db.ref("votos").once("value", async function(s) {
+    var votos = s.val() || {};
+    var fecha = new Date().toLocaleDateString("es-MX", { day:"2-digit", month:"long", year:"numeric" });
+    var hora  = new Date().toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" });
+    var cr    = CRIT[estadoActual.criterio || "simple"];
+
+    // Construir lista de votos en orden
+    var lista = MIEMBROS.map(function(m) {
+      var vd = Object.values(votos).find(function(v){ return v.cargo === m.cargo; });
+      return { nombre: vd ? vd.nombre : m.nombre, cargo: m.cargo, voto: vd ? vd.voto : null };
+    });
+    Object.values(votos).filter(function(v){ return v.cargo === "Miembro general"; }).forEach(function(v) {
+      lista.push({ nombre: v.nombre, cargo: "", voto: v.voto });
+    });
+
+    var fav = lista.filter(function(v){ return v.voto === "A favor"; });
+    var con = lista.filter(function(v){ return v.voto === "En contra"; });
+    var abs = lista.filter(function(v){ return v.voto === "Abstención"; });
+    var tot = fav.length + con.length + abs.length;
+    var res = tot > 0 ? cr.fn(fav.length, con.length, abs.length, tot) : { pasa: false, det: "Sin votos" };
+
+    var D = docx;
+    var ROJO="A31C41", NEGRO="111111", BLANCO="FFFFFF", GRIS_L="F2F2F2", GRIS_M="888888";
+    var VL="E8F5E8", RL="F9ECEF", AL="FFFFF0";
+    var b = {style:D.BorderStyle.SINGLE, size:1, color:"CCCCCC"};
+    var brd = {top:b, bottom:b, left:b, right:b};
+    var nb = {style:D.BorderStyle.NONE, size:0, color:"FFFFFF"};
+    var nob = {top:nb, bottom:nb, left:nb, right:nb};
+
+    function pr(txt, opts) {
+      opts = opts || {};
+      return new D.Paragraph({
+        spacing: { before:60, after:80 },
+        alignment: opts.c ? D.AlignmentType.CENTER : opts.r ? D.AlignmentType.RIGHT : D.AlignmentType.LEFT,
+        children: [new D.TextRun({ text:txt, font:"Arial", size:opts.s||22, bold:opts.b||false, color:opts.col||NEGRO, italic:opts.i||false })]
+      });
+    }
+    function sp(n) { return new D.Paragraph({ spacing:{before:n||120,after:0}, children:[new D.TextRun("")] }); }
+    function stripe(col) {
+      return new D.Table({ width:{size:9360,type:D.WidthType.DXA}, columnWidths:[9360], rows:[
+        new D.TableRow({ children:[new D.TableCell({ borders:nob, shading:{fill:col,type:D.ShadingType.CLEAR}, margins:{top:0,bottom:0,left:0,right:0}, children:[new D.Paragraph({children:[new D.TextRun("")]})] })] })
+      ]});
+    }
+    function vc(v) {
+      return v==="A favor" ? {bg:VL,t:"1a4a2a",ic:"✓"} : v==="En contra" ? {bg:RL,t:ROJO,ic:"✗"} : {bg:AL,t:"5c3a00",ic:"—"};
+    }
+    function vRow(num, nom, car, vot) {
+      var c = vot ? vc(vot) : {bg:GRIS_L,t:GRIS_M,ic:"·"};
+      var vt = vot==="A favor"?"✓  A FAVOR":vot==="En contra"?"✗  EN CONTRA":vot==="Abstención"?"—  ABSTENCIÓN":"Sin votar";
+      return new D.TableRow({ children:[
+        new D.TableCell({ borders:brd, width:{size:500,type:D.WidthType.DXA}, shading:{fill:c.bg,type:D.ShadingType.CLEAR}, margins:{top:60,bottom:60,left:60,right:60},
+          children:[new D.Paragraph({alignment:D.AlignmentType.CENTER, children:[new D.TextRun({text:String(num).padStart(2,"0"),font:"Arial",size:18,bold:true,color:c.t})]})] }),
+        new D.TableCell({ borders:brd, width:{size:4700,type:D.WidthType.DXA}, shading:{fill:BLANCO,type:D.ShadingType.CLEAR}, margins:{top:60,bottom:60,left:120,right:80},
+          children:[
+            new D.Paragraph({spacing:{after:0}, children:[new D.TextRun({text:nom,font:"Arial",size:20,bold:true,color:NEGRO})]}),
+            car ? new D.Paragraph({spacing:{after:0}, children:[new D.TextRun({text:car,font:"Arial",size:16,color:GRIS_M,italic:true})]}) : new D.Paragraph({children:[new D.TextRun("")]})
+          ]}),
+        new D.TableCell({ borders:brd, width:{size:1800,type:D.WidthType.DXA}, shading:{fill:c.bg,type:D.ShadingType.CLEAR}, margins:{top:60,bottom:60,left:120,right:120},
+          children:[new D.Paragraph({alignment:D.AlignmentType.CENTER, children:[new D.TextRun({text:vt,font:"Arial",size:19,bold:true,color:c.t})]})] })
+      ]});
+    }
+
+    var doc = new D.Document({
+      styles:{default:{document:{run:{font:"Arial",size:22}}}},
+      sections:[{
+        properties:{ page:{ size:{width:12240,height:15840}, margin:{top:1200,right:1200,bottom:1200,left:1200} } },
+        headers:{ default: new D.Header({ children:[
+          new D.Paragraph({ border:{bottom:{style:D.BorderStyle.SINGLE,size:4,color:ROJO,space:6}},
+            children:[new D.TextRun({text:"RED DE JÓVENES POR MÉXICO  |  Acta de Votación  |  Chihuahua, Chihuahua",font:"Arial",size:18,color:GRIS_M})] })
+        ]})},
+        footers:{ default: new D.Footer({ children:[
+          new D.Paragraph({ border:{top:{style:D.BorderStyle.SINGLE,size:4,color:ROJO,space:6}}, alignment:D.AlignmentType.CENTER,
+            children:[new D.TextRun({text:"Documento oficial — RED de Jóvenes por México  |  Página ",font:"Arial",size:16,color:GRIS_M}), new D.TextRun({children:[D.PageNumber.CURRENT],font:"Arial",size:16,color:ROJO})] })
+        ]})},
+        children:[
+          stripe(ROJO), sp(120),
+          pr("Chihuahua, Chihuahua, a "+fecha, {r:true,s:20,i:true}), sp(80),
+          pr("MIEMBROS DE RED DE JÓVENES POR MÉXICO", {b:true,s:24}),
+          pr("P R E S E N T E S:", {b:true,s:20}), sp(120),
+          new D.Paragraph({ spacing:{before:0,after:120}, children:[
+            new D.TextRun({text:"Por este conducto se hace constar que en sesión ordinaria de RED de Jóvenes por México, celebrada el día ",font:"Arial",size:22}),
+            new D.TextRun({text:fecha+" a las "+hora+" horas",font:"Arial",size:22,bold:true,color:NEGRO}),
+            new D.TextRun({text:", en las instalaciones ubicadas en Calle Décima 2209, Colonia Centro, C.P. 31000, Chihuahua, Chihuahua, se sometió a votación el siguiente punto:",font:"Arial",size:22})
+          ]}),
+          new D.Table({ width:{size:9360,type:D.WidthType.DXA}, columnWidths:[9360], rows:[
+            new D.TableRow({ children:[new D.TableCell({ borders:brd, shading:{fill:GRIS_L,type:D.ShadingType.CLEAR}, margins:{top:120,bottom:120,left:200,right:200},
+              children:[
+                new D.Paragraph({spacing:{after:30}, children:[new D.TextRun({text:"PUNTO A VOTACIÓN:",font:"Arial",size:18,bold:true,color:ROJO})]}),
+                new D.Paragraph({children:[new D.TextRun({text:estadoActual.tema||"—",font:"Arial",size:22,bold:true,color:NEGRO})]})
+              ]
+            })]})
+          ]}),
+          sp(120),
+          new D.Table({ width:{size:9360,type:D.WidthType.DXA}, columnWidths:[4680,4680], rows:[
+            new D.TableRow({ children:[
+              new D.TableCell({ borders:brd, width:{size:4680,type:D.WidthType.DXA}, shading:{fill:BLANCO,type:D.ShadingType.CLEAR}, margins:{top:100,bottom:100,left:160,right:160},
+                children:[new D.Paragraph({spacing:{after:20},children:[new D.TextRun({text:"Criterio:",font:"Arial",size:18,color:GRIS_M})]}), new D.Paragraph({children:[new D.TextRun({text:cr.label,font:"Arial",size:20,bold:true,color:NEGRO})]})] }),
+              new D.TableCell({ borders:brd, width:{size:4680,type:D.WidthType.DXA}, shading:{fill:res.pasa?"1a4a2a":ROJO,type:D.ShadingType.CLEAR}, margins:{top:100,bottom:100,left:160,right:160},
+                children:[new D.Paragraph({spacing:{after:20},children:[new D.TextRun({text:"Resultado:",font:"Arial",size:18,color:"FFAAAA"})]}), new D.Paragraph({children:[new D.TextRun({text:res.pasa?"PROPUESTA APROBADA":"PROPUESTA RECHAZADA",font:"Arial",size:22,bold:true,color:BLANCO})]})]})])
+          ]}),
+          sp(160),
+          pr("REGISTRO DE VOTACIÓN", {b:true,s:22,col:ROJO}),
+          new D.Paragraph({ border:{bottom:{style:D.BorderStyle.SINGLE,size:4,color:ROJO,space:1}}, spacing:{before:40,after:60}, children:[new D.TextRun("")] }),
+          sp(60),
+          new D.Table({ width:{size:9360,type:D.WidthType.DXA}, columnWidths:[500,4700,1800], rows:[
+            new D.TableRow({ children:[
+              new D.TableCell({ borders:brd, shading:{fill:NEGRO,type:D.ShadingType.CLEAR}, margins:{top:80,bottom:80,left:60,right:60}, children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"#",font:"Arial",size:18,bold:true,color:BLANCO})]})] }),
+              new D.TableCell({ borders:brd, shading:{fill:NEGRO,type:D.ShadingType.CLEAR}, margins:{top:80,bottom:80,left:120,right:80}, children:[new D.Paragraph({children:[new D.TextRun({text:"Miembro",font:"Arial",size:18,bold:true,color:BLANCO})]})] }),
+              new D.TableCell({ borders:brd, shading:{fill:NEGRO,type:D.ShadingType.CLEAR}, margins:{top:80,bottom:80,left:120,right:120}, children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"Voto",font:"Arial",size:18,bold:true,color:BLANCO})]})] })
+            ]}),
+            ...lista.map(function(v,i){ return vRow(i+1, v.nombre, v.cargo, v.voto); })
+          ]}),
+          sp(80),
+          new D.Table({ width:{size:9360,type:D.WidthType.DXA}, columnWidths:[3120,3120,3120], rows:[
+            new D.TableRow({ children:[
+              new D.TableCell({ borders:brd, shading:{fill:VL,type:D.ShadingType.CLEAR}, margins:{top:100,bottom:100,left:120,right:120}, children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:10},children:[new D.TextRun({text:"A FAVOR",font:"Arial",size:18,bold:true,color:"1a4a2a"})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:String(fav.length),font:"Arial",size:48,bold:true,color:"1a4a2a"})]})] }),
+              new D.TableCell({ borders:brd, shading:{fill:RL,type:D.ShadingType.CLEAR}, margins:{top:100,bottom:100,left:120,right:120}, children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:10},children:[new D.TextRun({text:"EN CONTRA",font:"Arial",size:18,bold:true,color:ROJO})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:String(con.length),font:"Arial",size:48,bold:true,color:ROJO})]})] }),
+              new D.TableCell({ borders:brd, shading:{fill:AL,type:D.ShadingType.CLEAR}, margins:{top:100,bottom:100,left:120,right:120}, children:[new D.Paragraph({alignment:D.AlignmentType.CENTER,spacing:{after:10},children:[new D.TextRun({text:"ABSTENCIÓN",font:"Arial",size:18,bold:true,color:"5c3a00"})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:String(abs.length),font:"Arial",size:48,bold:true,color:"5c3a00"})]})] })
+            ]])
+          ]}),
+          sp(200),
+          new D.Paragraph({ spacing:{before:0,after:120}, children:[new D.TextRun({text:"La presente acta se expide para los fines que al interesado convenga, en la ciudad de Chihuahua, Chihuahua, a "+fecha+".",font:"Arial",size:22,color:NEGRO})] }),
+          sp(60), pr("Agradeciendo su participación, quedo de ustedes.",{i:true}), sp(60),
+          pr("A T E N T A M E N T E",{b:true,c:true}), sp(40),
+          pr('"HASTA LA VICTORIA SIEMPRE"',{b:true,c:true,col:ROJO}), sp(240),
+          new D.Table({ width:{size:9360,type:D.WidthType.DXA}, columnWidths:[4480,400,4480], rows:[
+            new D.TableRow({ children:[
+              new D.TableCell({ borders:nob, shading:{fill:BLANCO,type:D.ShadingType.CLEAR}, margins:{top:0,bottom:0,left:200,right:200},
+                children:[new D.Paragraph({border:{bottom:{style:D.BorderStyle.SINGLE,size:4,color:NEGRO,space:4}},children:[new D.TextRun("")]}), new D.Paragraph({spacing:{before:40},alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"JORGE DANIEL SOTO CARRERA",font:"Arial",size:18,bold:true,color:NEGRO})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"Secretario de Acuerdos",font:"Arial",size:17,color:GRIS_M})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"RED de Jóvenes por México",font:"Arial",size:16,color:GRIS_M,italic:true})]})]}),
+              new D.TableCell({ borders:nob, shading:{fill:BLANCO,type:D.ShadingType.CLEAR}, children:[new D.Paragraph({children:[new D.TextRun("")]})] }),
+              new D.TableCell({ borders:nob, shading:{fill:BLANCO,type:D.ShadingType.CLEAR}, margins:{top:0,bottom:0,left:200,right:200},
+                children:[new D.Paragraph({border:{bottom:{style:D.BorderStyle.SINGLE,size:4,color:NEGRO,space:4}},children:[new D.TextRun("")]}), new D.Paragraph({spacing:{before:40},alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"LUIS DAVID ARRIETA SOLÍS",font:"Arial",size:18,bold:true,color:NEGRO})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"Presidente",font:"Arial",size:17,color:GRIS_M})]}), new D.Paragraph({alignment:D.AlignmentType.CENTER,children:[new D.TextRun({text:"RED de Jóvenes por México",font:"Arial",size:16,color:GRIS_M,italic:true})]})]})])
+          ]}),
+          sp(80), stripe(ROJO)
+        ]
+      }]
+    });
+
+    try {
+      var blob = await D.Packer.toBlob(doc);
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "Acta_Votacion_" + new Date().toLocaleDateString("es-MX").replace(/\/g,"-") + ".docx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      console.error(e);
+      alert("Error al generar el acta: " + e.message);
+    }
+  });
 }
 
 // ── INICIO ──
