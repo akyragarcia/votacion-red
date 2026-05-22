@@ -150,14 +150,15 @@ body{font-family:Arial,sans-serif;background:#111;color:#fff;min-height:100vh;}
     <div class="tema-txt" id="m-tema">Esperando votación...</div>
     <div id="m-criterio" class="criterio-badge" style="display:none;"></div>
   </div>
-  <div class="field">
+  <div class="field" id="campo-cargo" style="display:none;">
     <label>Tu cargo</label>
     <select id="m-cargo"><option value="">— Selecciona tu cargo —</option></select>
   </div>
-  <div class="field">
+  <div class="field" id="campo-nombre">
     <label>Tu nombre completo</label>
     <input type="text" id="m-nombre" placeholder="Escribe tu nombre">
   </div>
+  <div id="campo-cargo-fijo" style="display:none;padding:0.5rem 0;color:#A31C41;font-weight:bold;font-size:0.9rem;width:100%;max-width:440px;"></div>
   <div class="btns-voto" id="btns-voto">
     <button class="bv bv-f" onclick="emitirVoto('A favor')">✓ &nbsp; A FAVOR</button>
     <button class="bv bv-c" onclick="emitirVoto('En contra')">✗ &nbsp; EN CONTRA</button>
@@ -325,25 +326,41 @@ function mostrar(v) {
 
 // ── CARGOS ──
 function llenarCargos() {
-  const sel = document.getElementById("m-cargo");
-  sel.innerHTML = "<option value=''>— Selecciona tu cargo —</option>";
-  MIEMBROS.forEach(m => {
-    const o = document.createElement("option");
-    o.value = m.cargo; o.textContent = m.cargo; sel.appendChild(o);
-  });
-  const og = document.createElement("option");
-  og.value = "Miembro general"; og.textContent = "Miembro general"; sel.appendChild(og);
-
-  // Auto-cargo desde URL
-  const param = new URLSearchParams(window.location.search).get("cargo");
-  if (param) {
-    const match = MIEMBROS.find(m => m.cargo.toLowerCase().replace(/\s+/g,"_") === param.toLowerCase());
+  const params = new URLSearchParams(window.location.search);
+  const cargoParam = params.get("cargo");
+  
+  if (cargoParam) {
+    // Link personal con cargo - buscar miembro
+    const match = MIEMBROS.find(m => 
+      m.cargo.toLowerCase().replace(/[\s]+/g,"_").replace(/[^a-z0-9_]/g,"") === 
+      cargoParam.toLowerCase().replace(/[^a-z0-9_]/g,"")
+    );
     if (match) {
-      sel.value = match.cargo; sel.disabled = true; sel.style.opacity = "0.6";
+      // Pre-cargar cargo y nombre, ocultar campos, mostrar info fija
+      document.getElementById("campo-cargo").style.display = "none";
+      document.getElementById("campo-nombre").style.display = "none";
+      const fijo = document.getElementById("campo-cargo-fijo");
+      fijo.style.display = "block";
+      fijo.innerHTML = match.nombre + "<br><span style='color:#888;font-size:0.78rem;font-style:italic;'>" + match.cargo + "</span>";
+      // Set hidden values
+      const sel = document.getElementById("m-cargo");
+      sel.innerHTML = "<option value='" + match.cargo + "'>" + match.cargo + "</option>";
+      sel.value = match.cargo;
       const inp = document.getElementById("m-nombre");
-      inp.value = match.nombre; inp.disabled = true; inp.style.opacity = "0.6";
+      inp.value = match.nombre;
+      return;
     }
   }
+  
+  // Sin cargo en URL - solo mostrar campo de nombre (miembro general)
+  document.getElementById("campo-cargo").style.display = "none";
+  document.getElementById("campo-nombre").style.display = "block";
+  document.getElementById("campo-cargo-fijo").style.display = "none";
+  
+  // Set cargo as "Miembro general" automatically
+  const sel = document.getElementById("m-cargo");
+  sel.innerHTML = "<option value='Miembro general'>Miembro general</option>";
+  sel.value = "Miembro general";
 }
 
 // ── SYNC UI ──
