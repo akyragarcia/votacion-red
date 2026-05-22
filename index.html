@@ -313,8 +313,20 @@ function mostrar(v) {
     el.style.display = "flex";
     el.style.flexDirection = "column";
   }
-  if (v === "member") llenarCargos();
-  if (v === "member" || v === "tv") sync();
+  if (v === "member") {
+    llenarCargos();
+    // Show espera message by default until Firebase responds
+    const bv = document.getElementById("btns-voto");
+    const mesp = document.getElementById("msg-espera");
+    const mconf = document.getElementById("msg-conf");
+    const mcer = document.getElementById("msg-cerrada");
+    if (bv) bv.style.display = "none";
+    if (mconf) mconf.style.display = "none";
+    if (mcer) mcer.style.display = "none";
+    if (mesp) mesp.style.display = "block";
+    if (estado) sync();
+  }
+  if (v === "tv" && estado) sync();
 }
 
 // ── CARGOS ──
@@ -342,7 +354,18 @@ function llenarCargos() {
 
 // ── SYNC UI ──
 function sync() {
-  if (!estado) return;
+  if (!estado) {
+    // Sin votación activa aún - mostrar mensaje de espera
+    const mesp = document.getElementById("msg-espera");
+    if (mesp) mesp.style.display = "block";
+    const bv = document.getElementById("btns-voto");
+    const mconf = document.getElementById("msg-conf");
+    const mcer = document.getElementById("msg-cerrada");
+    if (bv) bv.style.display = "none";
+    if (mconf) mconf.style.display = "none";
+    if (mcer) mcer.style.display = "none";
+    return;
+  }
   const {tema, estado:est, criterio} = estado;
 
   // TV
