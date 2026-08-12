@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RED de Jóvenes por México — Votación</title>
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="manifest.json" id="app-manifest">
 <meta name="theme-color" content="#A31C41">
 <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -905,6 +905,26 @@ window.onload = function() {
   if(modo==="tv") irA("tv");
   else if(modo==="admin") irA("admin");
   else irA("votar");
+
+  // Hacer que el acceso directo instalado recuerde este mismo link (con ?cargo=... o ?modo=...)
+  if(window.location.search){
+    fetch("manifest.json").then(function(r){ return r.json(); }).then(function(base){
+      base.start_url = "./" + window.location.search;
+      if(miMiembro){
+        base.short_name = miMiembro.nombre.split(" ")[0];
+        base.name = "RED Votación — " + miMiembro.nombre;
+      } else if(modo==="tv"){
+        base.short_name = "RED TV";
+        base.name = "RED Votación — Pantalla TV";
+      } else if(modo==="admin"){
+        base.short_name = "RED Admin";
+        base.name = "RED Votación — Panel Admin";
+      }
+      var blob = new Blob([JSON.stringify(base)], {type:"application/manifest+json"});
+      var link = document.getElementById("app-manifest");
+      if(link) link.setAttribute("href", URL.createObjectURL(blob));
+    }).catch(function(){});
+  }
 };
 
 </script>
