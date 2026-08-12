@@ -958,6 +958,9 @@ function generarActaCombinada(){
 
 /* ── Inicio ── */
 window.onload = function() {
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  }
   iniciarFirebase();
   renderIdentidadLista();
   var params=new URLSearchParams(window.location.search);
@@ -984,26 +987,6 @@ window.onload = function() {
     irA("quien"); // primera vez en esta tablet: preguntar quién es
   } else {
     irA("votar");
-  }
-
-  // Bono: si de todos modos llegaron con un link con parámetros, que el acceso directo lo recuerde tal cual
-  if(window.location.search){
-    fetch("manifest.json").then(function(r){ return r.json(); }).then(function(base){
-      base.start_url = "./" + window.location.search;
-      if(miMiembro){
-        base.short_name = miMiembro.nombre.split(" ")[0];
-        base.name = "RED Votación — " + miMiembro.nombre;
-      } else if(modo==="tv"){
-        base.short_name = "RED TV";
-        base.name = "RED Votación — Pantalla TV";
-      } else if(modo==="admin"){
-        base.short_name = "RED Admin";
-        base.name = "RED Votación — Panel Admin";
-      }
-      var blob = new Blob([JSON.stringify(base)], {type:"application/manifest+json"});
-      var link = document.getElementById("app-manifest");
-      if(link) link.setAttribute("href", URL.createObjectURL(blob));
-    }).catch(function(){});
   }
 };
 
