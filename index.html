@@ -2729,6 +2729,7 @@ function hoyStr(){
   var d=new Date(ahora());
   return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
 }
+function cargoVis(c){ return (!c||c==="Invitado") ? "Miembro" : c; }
 function esc(s){
   return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }
@@ -2932,7 +2933,7 @@ function renderVotarSlots(){
     if(miMiembro){
       qa.innerHTML = "Esta tablet vota como <strong>"+esc(miMiembro.nombre)+"</strong> ("+esc(miMiembro.cargo)+") <button onclick=\"cambiarIdentidad()\">cambiar</button>";
     } else if(inv0){
-      qa.innerHTML = "Invitado: <strong>"+esc(inv0.nombre)+"</strong>";
+      qa.innerHTML = "Votas como <strong>"+esc(inv0.nombre)+"</strong> (Miembro)";
     } else {
       qa.innerHTML = "";
     }
@@ -2993,7 +2994,7 @@ function emitirVoto(slot, voto) {
   var nombre, cargo, key;
   var inv = invitadoActual();
   if(miKey && miMiembro){ nombre=miMiembro.nombre; cargo=miMiembro.cargo; key=miKey; }
-  else if(inv){ nombre=inv.nombre; cargo="Invitado"; key=inv.key; }
+  else if(inv){ nombre=inv.nombre; cargo="Miembro"; key=inv.key; }
   else{ alert("Primero elige quién eres."); return; }
   db.ref("votos/"+slot+"/"+key).set({key:key,nombre:nombre,cargo:cargo,voto:voto,ts:Date.now()});
   localStorage.setItem("voto_"+slot+"_"+e.id, voto);
@@ -3083,9 +3084,9 @@ function renderTVContent(){
   var extras = {};
   if(sesionVigente()){
     var regs = invitadosData[sesionInv.id]||{};
-    Object.keys(regs).forEach(function(k){ extras[k]={nombre:regs[k].nombre,cargo:"Invitado"}; });
+    Object.keys(regs).forEach(function(k){ extras[k]={nombre:regs[k].nombre,cargo:"Miembro"}; });
   }
-  Object.keys(mapa).forEach(function(k){ if(!clavesConocidas[k]) extras[k]={nombre:mapa[k].nombre,cargo:mapa[k].cargo||"Invitado"}; });
+  Object.keys(mapa).forEach(function(k){ if(!clavesConocidas[k]) extras[k]={nombre:mapa[k].nombre,cargo:cargoVis(mapa[k].cargo)}; });
   Object.keys(extras).forEach(function(k){
     var vd = mapa[k]||null, cls="fila-miembro", ico="", txt="";
     if(vd){
@@ -3405,7 +3406,7 @@ function abrirModal(item) {
         '<div class="mv-punto"></div>'+
         '<div class="mv-datos">'+
           '<div class="mv-nombre">'+esc(voto.nombre)+'</div>'+
-          '<div class="mv-cargo">'+esc(voto.cargo||"Invitado")+'</div>'+
+          '<div class="mv-cargo">'+esc(cargoVis(voto.cargo))+'</div>'+
         '</div>'+
         '<div class="mv-voto">'+ico+' '+txt+'</div>';
       lista.appendChild(fila);
@@ -3531,7 +3532,7 @@ function descargarActa(slot) {
     var vd = mapa[k];
     var votoTxt = vd.voto==="A favor"?"A FAVOR":vd.voto==="En contra"?"EN CONTRA":"ABSTENCIÓN";
     if(vd.voto==="A favor")f++; else if(vd.voto==="En contra")c++; else a++;
-    listaVotos.push({nombre:vd.nombre, cargo:vd.cargo||"Invitado", voto:votoTxt});
+    listaVotos.push({nombre:vd.nombre, cargo:cargoVis(vd.cargo), voto:votoTxt});
   });
   var total=f+c+a;
   var cr = e.criterio||"simple";
@@ -3588,7 +3589,7 @@ function generarActaCombinada(){
       if(clavesConocidas[k]) return;
       var vd = item.votos[k];
       var votoTxt = vd.voto==="A favor"?"A FAVOR":vd.voto==="En contra"?"EN CONTRA":"ABSTENCIÓN";
-      listaVotos.push({nombre:vd.nombre, cargo:vd.cargo||"Invitado", voto:votoTxt});
+      listaVotos.push({nombre:vd.nombre, cargo:cargoVis(vd.cargo), voto:votoTxt});
     });
     if(idx>0){
       children.push(espDocx(D,6));
