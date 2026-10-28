@@ -237,14 +237,16 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
 .quien-actual button{background:none;border:none;color:#A31C41;font-size:.72rem;text-decoration:underline;cursor:pointer;padding:0;margin-left:4px;}
 
 /* ── TV compacto (muchos nombres, estilo Cámara de Diputados) ── */
-.miembros-lista.compacto{grid-template-columns:repeat(3,1fr);gap:1px 14px;align-content:start;}
-.miembros-lista.compacto.xl{grid-template-columns:repeat(4,1fr);}
-.miembros-lista.compacto .fila-miembro{background:none !important;border:none !important;box-shadow:none !important;padding:1px 2px;gap:6px;border-radius:0;}
-.miembros-lista.compacto .fila-punto{width:7px;height:7px;}
-.miembros-lista.compacto .fila-nombre{font-size:.62rem;font-weight:600;}
-.miembros-lista.compacto .fila-cargo,.miembros-lista.compacto .fila-voto{display:none;}
-.miembros-lista.compacto .fila-miembro.pendiente{opacity:.6;}
-.miembros-lista.compacto .pendiente .fila-nombre{color:#666;}
+.miembros-lista.compacto{grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));gap:1px 16px;overflow:hidden;align-content:start;font-size:var(--fs,14px);}
+.miembros-lista.compacto .fila-miembro{background:none !important;border:none !important;box-shadow:none !important;padding:1px 2px;gap:.45em;border-radius:0;}
+.miembros-lista.compacto .fila-punto{width:.55em;height:.55em;}
+.miembros-lista.compacto .fila-miembro{min-width:0;}
+.miembros-lista.compacto .fila-datos{display:flex;align-items:baseline;gap:.5em;min-width:0;}
+.miembros-lista.compacto .fila-nombre{font-size:1em;font-weight:600;flex-shrink:1;min-width:0;max-width:75%;}
+.miembros-lista.compacto .fila-cargo{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.72em;flex:1;min-width:0;margin:0;color:inherit !important;opacity:.6;}
+.miembros-lista.compacto .fila-voto{display:none;}
+.miembros-lista.compacto .fila-miembro.pendiente{opacity:.65;}
+.miembros-lista.compacto .pendiente .fila-nombre{color:#777;}
 /* ── RELOJ / INVITADOS ── */
 .reloj{font-variant-numeric:tabular-nums;font-weight:900;color:#facc15;background:#1a1a0a;border:1px solid #3a3a1a;border-radius:20px;padding:3px 10px;font-size:.8rem;display:inline-block;}
 .reloj.urgente{color:#f87171;background:#2a0a0a;border-color:#8b1a1a;animation:parpadeo 1s infinite;}
@@ -2736,12 +2738,12 @@ var MIEMBROS = [
   {key:"Emmanuel",      nombre:"Emmanuel Carballo Jacquez",           cargo:"Miembro"},
   {key:"Mauricio",      nombre:"Mauricio Alejandro Rubio Berrueto",   cargo:"Miembro"},
   {key:"Leunam",        nombre:"Leunam Fernando Diaz Ontiveros",      cargo:"Miembro"},
-  {key:"Daleth_Beristain", nombre:"Daleth Beristain",                 cargo:"Invitado Especial"},
-  {key:"Ignacio_Car",   nombre:"Ignacio Carmona Perez",               cargo:"Invitado Especial"},
-  {key:"Ana_Palma",     nombre:"Ana Laura Palma Rascon",              cargo:"Invitado Especial"},
-  {key:"Santiago_Ruiz", nombre:"Santiago Ruiz Reyes",                 cargo:"Invitado Especial"},
-  {key:"Emiliano_acos", nombre:"Emiliano Acosta",                     cargo:"Invitado Especial"},
-  {key:"Yair_Meza",     nombre:"Yair Meza",                           cargo:"Invitado Especial"}
+  {key:"Daleth_Beristain", nombre:"Daleth Beristain",                     cargo:"Invitado Especial"},
+  {key:"Ignacio_Car",    nombre:"Ignacio Carmona Perez",                cargo:"Invitado Especial"},
+  {key:"Ana_Palma",      nombre:"Ana Laura Palma Rascon",               cargo:"Invitado Especial"},
+  {key:"Santiago_Ruiz",  nombre:"Santiago Ruiz Reyes",                  cargo:"Invitado Especial"},
+  {key:"Emiliano_acos",  nombre:"Emiliano Acosta",                      cargo:"Invitado Especial"},
+  {key:"Yair_Meza",      nombre:"Yair Meza",                            cargo:"Invitado Especial"}
 ];
 
 var CRITERIOS = {
@@ -3126,6 +3128,22 @@ function seleccionarTabTV(slot){
   renderTVContent();
 }
 
+// Tamaño de letra del modo compacto: mientras más nombres, más chica, ajustada al alto disponible
+function ajustarListaTV(n){
+  var lista = document.getElementById("miembros-lista");
+  if(!lista || n<=50){ if(lista){ lista.style.removeProperty("--fs"); lista.style.removeProperty("--cols"); } return; }
+  var cols = n>80 ? 4 : 3;
+  var rows = Math.ceil(n/cols);
+  var pie = document.querySelector(".tv-pie");
+  var top = lista.getBoundingClientRect().top;
+  var avail = window.innerHeight - top - (pie ? pie.offsetHeight : 90) - 24;
+  if(!(avail>150)) avail = window.innerHeight*0.55;
+  var px = Math.max(10, Math.min(22, avail/rows/1.35));
+  lista.style.setProperty("--cols", cols);
+  lista.style.setProperty("--fs", px.toFixed(1)+"px");
+}
+window.addEventListener("resize", function(){ renderTVContent(); });
+
 function renderTVContent(){
   var vacio = document.getElementById("tv-vacio");
   var contenido = document.getElementById("tv-contenido");
@@ -3202,7 +3220,8 @@ function renderTVContent(){
   });
   // Más de 50 en lista: sin recuadros, solo punto + nombre de color
   var totalLista = lista.children.length;
-  lista.className = "miembros-lista" + (totalLista>50 ? " compacto" : "") + (totalLista>90 ? " xl" : "");
+  lista.className = "miembros-lista" + (totalLista>50 ? " compacto" : "");
+  ajustarListaTV(totalLista);
   document.getElementById("tot-f").textContent=f;
   document.getElementById("tot-c").textContent=c;
   document.getElementById("tot-a").textContent=a;
