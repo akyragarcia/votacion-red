@@ -3261,6 +3261,11 @@ function renderAdminSlots(){
         html += '</div>';
       }
     }
+    var hu = huerfanos(slot);
+    if(hu.length){
+      html += '<div class="crit-desc" style="margin-top:.7rem;padding-top:.6rem;border-top:1px solid #222;">Votos de invitados que ya no están en la sesión: <strong style="color:#ccc;">'+hu.map(function(h){return esc(h.nombre);}).join(", ")+'</strong>'+
+        ' <button class="btn-a btn-cerrar" style="padding:.3rem .7rem;font-size:.75rem;margin-left:.4rem;" onclick="borrarHuerfanos(\''+slot+'\')">Borrar estos votos</button></div>';
+    }
     html += '</div>';
   });
   cont.innerHTML = html;
@@ -3270,6 +3275,24 @@ function renderAdminSlots(){
   }
 }
 
+// Votos de gente que no es miembro ni está registrada en la sesión actual (invitados eliminados o sesión terminada)
+function huerfanos(slot){
+  var votos = votosSlots[slot]||{}, out = [];
+  var conocidos = {};
+  MIEMBROS.forEach(function(m){ conocidos[m.key]=true; });
+  if(sesionVigente()){ Object.keys(invitadosData[sesionInv.id]||{}).forEach(function(k){ conocidos[k]=true; }); }
+  Object.keys(votos).forEach(function(k){
+    var v = votos[k];
+    if(v && !conocidos[v.key||k]) out.push({key:k,nombre:v.nombre||k});
+  });
+  return out;
+}
+function borrarHuerfanos(slot){
+  var hu = huerfanos(slot);
+  if(!db||!hu.length) return;
+  if(!confirm("¿Borrar de la pantalla el voto de: "+hu.map(function(h){return h.nombre;}).join(", ")+"?\n\nLos votos ya guardados en el historial no se tocan.")) return;
+  hu.forEach(function(h){ db.ref("votos/"+slot+"/"+h.key).set(null); });
+}
 function elegirDuracion(slot, m){
   duracionPorSlot[slot] = m;
   renderAdminSlots();
