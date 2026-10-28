@@ -262,6 +262,8 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
 .inv-panel{display:flex;gap:1.2rem;flex-wrap:wrap;align-items:flex-start;}
 .inv-info{flex:1;min-width:220px;display:flex;flex-direction:column;gap:.6rem;}
 .inv-link{font-size:.72rem;color:#888;word-break:break-all;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.5rem;}
+.inv-chip{display:inline-flex;align-items:center;gap:6px;background:#111;border:1px solid #2a2a2a;border-radius:20px;padding:3px 4px 3px 10px;margin:0 6px 6px 0;color:#ccc;font-size:.76rem;}
+.inv-chip button{background:#2a0a0a;border:none;color:#f87171;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:.7rem;line-height:1;}
 .inv-nombres{font-size:.74rem;color:#888;line-height:1.6;}
 #s-pin{align-items:center;padding:2rem 1.2rem;gap:.9rem;}
 .pin-input{width:100%;padding:1rem;background:#1e1e1e;border:1px solid #333;border-radius:8px;color:#fff;font-size:1.6rem;letter-spacing:.6em;text-align:center;outline:none;}
@@ -2748,7 +2750,7 @@ var invitadosData = {};    // {sesionId: {key:{nombre,ts}}}
 var INVITADO_KEY = "red_invitado";
 var modoPantalla = "";     // "tv" | "admin" | "" (tablet)
 var autoCierre = {};
-var sesionListo = false;       // {slot_id: {t:proximoIntento}}
+var sesionListo = false, invListo = false;       // {slot_id: {t:proximoIntento}}
 
 function ahora(){ return Date.now()+serverOffset; }
 function hoyStr(){
@@ -2769,6 +2771,7 @@ function leerInvitadoLocal(){
 function invitadoActual(){
   var r=leerInvitadoLocal();
   if(!r||!sesionVigente()||r.sesion!==sesionInv.id) return null;
+  if(invListo && !(invitadosData[r.sesion]||{})[r.key]) return null;   // el organizador lo eliminó
   return r;
 }
 var tvTabActivo = null;
@@ -2791,7 +2794,7 @@ function iniciarFirebase() {
   db.ref("historial").on("value", function(s){ historialData = s.val()||{}; renderHistorial(); });
   db.ref(".info/serverTimeOffset").on("value", function(s){ serverOffset = s.val()||0; });
   db.ref("sesionInvitados").on("value", function(s){ sesionInv = s.val()||null; sesionListo = true; renderTodo(); });
-  db.ref("invitadosSesion").on("value", function(s){ invitadosData = s.val()||{}; renderAdminInvitados(); renderTVContent(); });
+  db.ref("invitadosSesion").on("value", function(s){ invitadosData = s.val()||{}; invListo = true; renderTodo(); });
 }
 
 function renderTodo(){
@@ -2931,6 +2934,13 @@ function habilitarInvitados(){
   db.ref("invitadosSesion").set(null);
   db.ref("sesionInvitados").set({estado:"abierta",id:id,dia:hoyStr()});
 }
+function quitarInvitado(key){
+  if(!db||!sesionInv) return;
+  var reg=(invitadosData[sesionInv.id]||{})[key];
+  if(!reg) return;
+  if(!confirm("¿Eliminar a "+reg.nombre+" de la sesión? Ya no podrá votar. Sus votos anteriores se conservan.")) return;
+  db.ref("invitadosSesion/"+sesionInv.id+"/"+key).set(null);
+}
 function cerrarRegistroInv(){ if(db) db.ref("sesionInvitados/estado").set("cerrada"); }
 function reabrirRegistroInv(){ if(db) db.ref("sesionInvitados/estado").set("abierta"); }
 function terminarInvitados(){
@@ -2956,7 +2966,8 @@ function renderAdminInvitados(){
     cont.innerHTML=html; _qrUltimo=""; return;
   }
   var lista=invitadosData[sesionInv.id]||{};
-  var nombres=Object.keys(lista).map(function(k){return lista[k].nombre;});
+  var claves=Object.keys(lista);
+  var nombres=claves;
   var abierta=sesionInv.estado==="abierta";
   var url=enlaceInvitados();
   html+='<div class="inv-panel">';
@@ -2969,7 +2980,9 @@ function renderAdminInvitados(){
   html+='<div style="font-size:.85rem;font-weight:bold;color:'+(abierta?'#4ade80':'#facc15')+';">'+(abierta?'● Registro abierto':'Registro cerrado (los ya registrados siguen votando)')+'</div>';
   if(abierta) html+='<div class="inv-link">'+esc(url)+'</div>';
   html+='<div style="font-size:.8rem;color:#ccc;">'+nombres.length+' registrado(s)</div>';
-  if(nombres.length) html+='<div class="inv-nombres">'+nombres.map(esc).join(" · ")+'</div>';
+  if(claves.length) html+='<div class="inv-nombres">'+claves.map(function(k){
+    return '<span class="inv-chip">'+esc(lista[k].nombre)+'<button title="Eliminar" onclick="quitarInvitado(\''+k+'\')">✕</button></span>';
+  }).join("")+'</div>';
   html+='<div class="acciones">';
   if(abierta) html+='<button class="btn-a btn-neutro" onclick="cerrarRegistroInv()">Cerrar registro</button>';
   else html+='<button class="btn-a btn-abrir" onclick="reabrirRegistroInv()">Reabrir registro</button>';
@@ -3004,7 +3017,7 @@ function renderVotarSlots(){
   var invLocal = leerInvitadoLocal();
   if(!miMiembro && !invitadoActual()){
     var msg = (invLocal && sesionListo)
-      ? '<h3>La sesión de invitados terminó</h3><p>Tu registro temporal ya no es válido.</p>'
+      ? '<h3>Tu registro ya no es válido</h3><p>La sesión de invitados terminó o el organizador te quitó de la lista.</p>'
       : '<h3>¿Quién eres?</h3><p>Elige tu nombre para poder votar. Si eres invitado, entra con el QR o link que te den.</p>';
     cont.innerHTML='<div class="mensaje">'+msg+'<button class="btn-a btn-abrir" style="margin-top:1rem;" onclick="soyIntegrante()">Soy integrante</button></div>';
     return;
