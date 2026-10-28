@@ -2677,7 +2677,7 @@ var MIEMBROS = [
   {key:"presidencia",    nombre:"Luis David Arrieta Solís",           cargo:"Presidencia"},
   {key:"vicepresidencia",nombre:"Alexa Muñoz Cano",                   cargo:"Vicepresidencia"},
   {key:"programacion",   nombre:"Cristopher Akyra García Ruiz",       cargo:"Secretaría de Programación y Presupuesto"},
-  {key:"acuerdos",       nombre:"Jorge Daniel Soto Carrera",          cargo:"Secretaría General"},
+  {key:"acuerdos",       nombre:"Jorge Daniel Soto Carrera",          cargo:"Secretaría de Acuerdos"},
   {key:"comunicacion",   nombre:"Luis Carlos Bárcenas Montoya",       cargo:"Secretaría de Comunicación y Propaganda"},
   {key:"organizacion",   nombre:"José Eduardo Santillán Galarza",     cargo:"Secretaría de Organización"},
   {key:"fomento",        nombre:"Kenia Noemí Arrieta Solís",          cargo:"Secretaría de Fomento Social"},
@@ -2734,7 +2734,7 @@ function esc(s){
   return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
 }
 function sesionVigente(){
-  return !!(sesionInv && sesionInv.id && sesionInv.dia===hoyStr() && (sesionInv.estado==="abierta"||sesionInv.estado==="cerrada"));
+  return !!(sesionInv && sesionInv.id && (sesionInv.estado==="abierta"||sesionInv.estado==="cerrada"));
 }
 function leerInvitadoLocal(){
   try{ var r=JSON.parse(localStorage.getItem(INVITADO_KEY)||"null"); return (r&&r.sesion&&r.key&&r.nombre)?r:null; }catch(e){ return null; }
@@ -2831,7 +2831,7 @@ function renderInvitadoPantalla(){
   cont.innerHTML='<div class="campo" style="max-width:none;"><label>Escribe tu nombre completo</label>'+
     '<input type="text" id="inv-nombre" autocomplete="off" placeholder="Nombre y apellidos" value="'+esc(nombrePrevio)+'"></div>'+
     '<button class="btn-a btn-abrir" style="padding:1rem;font-size:1rem;" onclick="registrarInvitado()">Entrar a votar</button>'+
-    '<div class="tema-label" style="text-align:center;">Tu registro solo vale para esta sesión</div>'+enlace;
+    '<div class="tema-label" style="text-align:center;">Tu registro vale hasta que el organizador termine la sesión</div>'+enlace;
 }
 
 function limpiarNombre(s){
@@ -2888,7 +2888,7 @@ function renderAdminInvitados(){
   if(!cont) return;
   var html="";
   if(!sesionVigente()){
-    html+='<div class="crit-desc">'+(sesionInv?'La sesión anterior ya venció. ':'')+'Habilita el registro cuando quieras que personas externas entren con un QR o link, escriban su nombre y puedan votar solo en esta sesión (válido solo hoy).</div>';
+    html+='<div class="crit-desc">'+'Habilita el registro cuando quieras que personas externas entren con un QR o link, escriban su nombre y puedan votar mientras la sesión siga activa. Dura los días que quieras, hasta que tú la termines.</div>';
     html+='<div class="acciones"><button class="btn-a btn-abrir" onclick="habilitarInvitados()">Habilitar registro de invitados</button></div>';
     cont.innerHTML=html; _qrUltimo=""; return;
   }
