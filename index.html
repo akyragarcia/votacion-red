@@ -263,6 +263,12 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
 .inv-info{flex:1;min-width:220px;display:flex;flex-direction:column;gap:.6rem;}
 .inv-link{font-size:.72rem;color:#888;word-break:break-all;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.5rem;}
 .inv-nombres{font-size:.74rem;color:#888;line-height:1.6;}
+#s-pin{align-items:center;padding:2rem 1.2rem;gap:.9rem;}
+.pin-input{width:100%;padding:1rem;background:#1e1e1e;border:1px solid #333;border-radius:8px;color:#fff;font-size:1.6rem;letter-spacing:.6em;text-align:center;outline:none;}
+.pin-input:focus{border-color:#A31C41;}
+.pin-error{color:#f87171;font-size:.8rem;text-align:center;min-height:1.1rem;}
+.pin-lista{font-size:.78rem;color:#aaa;line-height:1.7;columns:2;column-gap:1.5rem;}
+.pin-lista b{color:#fff;font-variant-numeric:tabular-nums;}
 </style>
 </head>
 <body>
@@ -281,6 +287,21 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
   <div class="subtitulo">Registro de invitados</div>
   <hr class="linea">
   <div class="inv-box" id="inv-contenido"></div>
+</div>
+
+<!-- PIN -->
+<div class="sec" id="s-pin">
+  <img class="logo-votar" id="logo-votar-pin" alt="RED de Jóvenes por México">
+  <div class="subtitulo">Confirma tu identidad</div>
+  <hr class="linea">
+  <div class="inv-box">
+    <div class="quien-box"><div class="quien-nombre" id="pin-nombre"></div><div class="quien-cargo" id="pin-cargo"></div></div>
+    <div class="campo" style="max-width:none;"><label>Escribe tu PIN de 4 dígitos</label>
+      <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" class="pin-input" id="pin-input" onkeydown="if(event.key==='Enter')verificarPin()"></div>
+    <div class="pin-error" id="pin-error"></div>
+    <button class="btn-a btn-abrir" style="padding:1rem;font-size:1rem;" onclick="verificarPin()">Entrar</button>
+    <div style="text-align:center;"><button class="btn-texto" onclick="cancelarPin()">Elegir otro nombre</button></div>
+  </div>
 </div>
 
 <!-- VOTAR -->
@@ -340,6 +361,11 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
   <div class="tarjeta">
     <h3>Invitados de la sesión (temporal)</h3>
     <div id="admin-invitados"></div>
+  </div>
+  <div class="tarjeta">
+    <h3>PINs de los miembros</h3>
+    <details><summary style="cursor:pointer;color:#888;font-size:.8rem;">Mostrar PINs</summary>
+      <div class="pin-lista" id="pin-lista" style="margin-top:.7rem;"></div></details>
   </div>
   <div class="tarjeta">
     <h3>Historial de votaciones</h3>
@@ -2780,7 +2806,7 @@ function renderTodo(){
 
 /* ── Navegación ── */
 function irA(sec) {
-  ["quien","votar","tv","admin","invitado"].forEach(function(id){ document.getElementById("s-"+id).style.display="none"; });
+  ["quien","votar","tv","admin","invitado","pin"].forEach(function(id){ document.getElementById("s-"+id).style.display="none"; });
   var el=document.getElementById("s-"+sec);
   el.style.display="flex"; el.style.flexDirection="column";
 }
@@ -2797,13 +2823,50 @@ function renderIdentidadLista(){
   el.innerHTML = html;
 }
 
-function elegirIdentidad(key){
+function pinDe(key){
+  for(var i=0;i<MIEMBROS.length;i++){ if(MIEMBROS[i].key===key) return ("0000"+(i+1)).slice(-4); }
+  return null;
+}
+var pinPendiente = null, pinFallos = 0, pinBloqueoHasta = 0;
+function pedirPin(key){
   var enc = MIEMBROS.filter(function(m){return m.key===key;})[0];
-  if(!enc) return;
-  miKey = enc.key; miMiembro = enc;
-  localStorage.setItem(IDENTIDAD_KEY, key);
-  renderTodo();
-  irA("votar");
+  if(!enc){ irA("quien"); return; }
+  pinPendiente = key;
+  document.getElementById("pin-nombre").textContent = enc.nombre;
+  document.getElementById("pin-cargo").textContent = enc.cargo;
+  document.getElementById("pin-input").value = "";
+  document.getElementById("pin-error").textContent = "";
+  irA("pin");
+  setTimeout(function(){ var i=document.getElementById("pin-input"); if(i) i.focus(); }, 50);
+}
+function cancelarPin(){ pinPendiente = null; renderIdentidadLista(); irA("quien"); }
+function verificarPin(){
+  if(!pinPendiente) return;
+  var err = document.getElementById("pin-error");
+  if(Date.now() < pinBloqueoHasta){ err.textContent = "Demasiados intentos. Espera unos segundos."; return; }
+  var v = document.getElementById("pin-input").value.trim();
+  if(v === pinDe(pinPendiente)){
+    var enc = MIEMBROS.filter(function(m){return m.key===pinPendiente;})[0];
+    miKey = enc.key; miMiembro = enc;
+    try{ localStorage.setItem(IDENTIDAD_KEY, enc.key); localStorage.removeItem(INVITADO_KEY); }catch(e){}
+    pinPendiente = null; pinFallos = 0;
+    renderTodo();
+    irA("votar");
+  } else {
+    pinFallos++;
+    document.getElementById("pin-input").value = "";
+    if(pinFallos>=5){ pinBloqueoHasta = Date.now()+30000; pinFallos = 0; err.textContent = "Demasiados intentos. Espera 30 segundos."; }
+    else err.textContent = "PIN incorrecto.";
+  }
+}
+function renderPinLista(){
+  var el = document.getElementById("pin-lista");
+  if(!el) return;
+  el.innerHTML = MIEMBROS.map(function(m){ return esc(m.nombre)+": <b>"+pinDe(m.key)+"</b>"; }).join("<br>");
+}
+
+function elegirIdentidad(key){
+  pedirPin(key);
 }
 
 function soyIntegrante(){
@@ -3621,7 +3684,8 @@ window.onload = function() {
   }
   document.getElementById("logo-votar-inv").src = "data:image/png;base64," + LOGO_B64;
   iniciarFirebase();
-  renderIdentidadLista();
+  renderIdentidadLista(); renderPinLista();
+  document.getElementById("logo-votar-pin").src = "data:image/png;base64," + LOGO_B64;
   var params=new URLSearchParams(window.location.search);
   var modo=params.get("modo"), cargoParam=params.get("cargo"), invParam=params.get("invitado");
   modoPantalla = (modo==="tv"||modo==="admin") ? modo : "";
@@ -3630,8 +3694,8 @@ window.onload = function() {
   if(cargoParam){
     var enc=MIEMBROS.filter(function(m){return m.key===cargoParam;})[0];
     if(enc){
-      miKey=enc.key; miMiembro=enc;
-      localStorage.setItem(IDENTIDAD_KEY, cargoParam);
+      if(localStorage.getItem(IDENTIDAD_KEY)===cargoParam){ miKey=enc.key; miMiembro=enc; }  // ya verificada en esta tablet
+      else pinPendiente=cargoParam;                                                         // primera vez: pedir PIN
     }
   } else if(!modo){
     // Sin link de cargo: revisar si esta tablet ya tiene identidad guardada
@@ -3642,7 +3706,8 @@ window.onload = function() {
     }
   }
 
-  if(invParam && !modo && !cargoParam){
+  if(pinPendiente && !modo){ pedirPin(pinPendiente); }
+  else if(invParam && !modo && !cargoParam){
     invParamSesion = invParam;
     irA("invitado"); renderInvitadoPantalla();
   }
