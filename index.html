@@ -2725,17 +2725,17 @@ var MIEMBROS = [
   {key:"Marisela",       nombre:"Marisela Renova Lopez",              cargo:"Miembro"},
   {key:"hazael",         nombre:"Jesus Hazael Soto Carrera",          cargo:"Miembro"},
   {key:"irving",         nombre:"Irving Alejandro Diaz Segura",       cargo:"Miembro"},
-  {key:"Murasaki",       nombre:"Jorge Murasaki Garcia Ruiz",         cargo:"Miembro"},
-  {key:"yael",           nombre:"Angel Yael Chavez Luna",             cargo:"Miembro"},
-  {key:"Sebastian",      nombre:"Sebastian Ramirez de la Rosa",       cargo:"Miembro"},
-  {key:"Axel",           nombre:"Axel Elian Rubio Narro",             cargo:"Miembro"},
-  {key:"Ruby",           nombre:"Ruby Gonzalez Alonso",               cargo:"Miembro"},
-  {key:"Paulina",        nombre:"Paulina Valeria Granados Laguna",    cargo:"Miembro"},
-  {key:"Leslie",         nombre:"Leslie Yamileth Carrillo Delgado",   cargo:"Miembro"},
-  {key:"Karla",          nombre:"Karla Maria Ponce de Leon Pacheco",  cargo:"Miembro"},
-  {key:"Emmanuel",       nombre:"Emmanuel Carballo Jacquez",          cargo:"Miembro"},
-  {key:"Mauricio",       nombre:"Mauricio Alejandro Rubio Berrueto",  cargo:"Miembro"},
-  {key:"Leunam",         nombre:"Leunam Fernando Diaz Ontiveros",     cargo:"Miembro"}
+  {key:"Murasaki",      nombre:"Jorge Murasaki Garcia Ruiz",          cargo:"Miembro"},
+  {key:"yael",          nombre:"Angel Yael Chavez Luna",              cargo:"Miembro"},
+  {key:"Sebastian",     nombre:"Sebastian Ramirez de la Rosa",        cargo:"Miembro"},
+  {key:"Axel",          nombre:"Axel Elian Rubio Narro",              cargo:"Miembro"},
+  {key:"Ruby",          nombre:"Ruby Gonzalez Alonso",                cargo:"Miembro"},
+  {key:"Paulina",       nombre:"Paulina Valeria Granados Laguna",     cargo:"Miembro"},
+  {key:"Leslie",        nombre:"Leslie Yamileth Carrillo Delgado",    cargo:"Miembro"},
+  {key:"Karla",         nombre:"Karla Maria Ponce de Leon Pacheco",   cargo:"Miembro"},
+  {key:"Emmanuel",      nombre:"Emmanuel Carballo Jacquez",           cargo:"Miembro"},
+  {key:"Mauricio",      nombre:"Mauricio Alejandro Rubio Berrueto",   cargo:"Miembro"},
+  {key:"Leunam",        nombre:"Leunam Fernando Diaz Ontiveros",      cargo:"Miembro"}
 ];
 
 var CRITERIOS = {
@@ -2949,8 +2949,14 @@ function quitarInvitado(key){
   if(!db||!sesionInv) return;
   var reg=(invitadosData[sesionInv.id]||{})[key];
   if(!reg) return;
-  if(!confirm("¿Eliminar a "+reg.nombre+" de la sesión? Ya no podrá votar. Sus votos anteriores se conservan.")) return;
+  if(!confirm("¿Eliminar a "+reg.nombre+" de la sesión? Ya no podrá votar.")) return;
+  var conVoto = SLOTS.filter(function(sl){ return votosSlots[sl] && votosSlots[sl][key]; });
+  var borrarVotos = false;
+  if(conVoto.length){
+    borrarVotos = confirm(reg.nombre+" tiene voto en "+conVoto.map(function(sl){return SLOT_LABEL[sl];}).join(", ")+".\n\nAceptar = borrar también su voto de la pantalla.\nCancelar = conservar su voto.");
+  }
   db.ref("invitadosSesion/"+sesionInv.id+"/"+key).set(null);
+  if(borrarVotos) conVoto.forEach(function(sl){ db.ref("votos/"+sl+"/"+key).set(null); });
 }
 function cerrarRegistroInv(){ if(db) db.ref("sesionInvitados/estado").set("cerrada"); }
 function reabrirRegistroInv(){ if(db) db.ref("sesionInvitados/estado").set("abierta"); }
