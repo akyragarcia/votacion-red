@@ -285,6 +285,13 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
 .favor .conf-si{background:#1a4a2a;color:#4ade80;} .contra .conf-si{background:#A31C41;color:#fff;} .abstencion .conf-si{background:#3a3a1a;color:#facc15;}
 .conf-no{padding:.9rem;border-radius:10px;border:1px solid #333;background:#111;color:#999;font-size:.95rem;cursor:pointer;}
 .conf-si:disabled{opacity:.5;}
+.prep-texto{width:100%;padding:.8rem 1rem;background:#111;border:1px solid #333;border-radius:8px;color:#fff;font-size:.92rem;outline:none;resize:vertical;font-family:inherit;}
+.prep-texto:focus{border-color:#A31C41;}
+.prep-item{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;padding:.7rem 0;border-bottom:1px solid #222;}
+.prep-item .n{width:1.6rem;height:1.6rem;border-radius:50%;background:#222;color:#888;font-size:.75rem;font-weight:bold;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.prep-item.sig .n{background:#A31C41;color:#fff;}
+.prep-item .t{flex:1;min-width:200px;font-size:.9rem;color:#ddd;line-height:1.3;}
+.prep-sel{background:#111;border:1px solid #333;color:#aaa;border-radius:6px;padding:.35rem .4rem;font-size:.75rem;}
 </style>
 </head>
 <body>
@@ -373,6 +380,14 @@ body{background:#111;color:#fff;font-family:Arial,sans-serif;min-height:100vh;}
   <div class="tarjeta">
     <h3>Votaciones (hasta 3 simultáneas)</h3>
     <div id="admin-slots" class="admin-slots"></div>
+  </div>
+  <div class="tarjeta">
+    <h3>Votaciones preparadas</h3>
+    <div class="crit-desc">Deja escritas las votaciones de la sesión (una por renglón) y ábrelas una por una cuando toque. Al abrir una, se va a la primera pantalla libre y sale de esta lista.</div>
+    <textarea id="prep-texto" class="prep-texto" rows="4" placeholder="Escribe una votación por renglón…"></textarea>
+    <div id="prep-opciones"></div>
+    <div class="acciones"><button class="btn-a btn-abrir" onclick="agregarPreparadas()">Agregar a la lista</button></div>
+    <div id="prep-lista"></div>
   </div>
   <div class="tarjeta">
     <h3>Invitados de la sesión (temporal)</h3>
@@ -2807,6 +2822,7 @@ var autoCierre = {};
 var sesionListo = false, invListo = false;
 var invitadosEspData = {}, espListo = false;   // invitados especiales (los maneja el admin)
 var invParamEsp = null;
+var preparadasData = {}, prepCrit = "simple", prepMin = 0;
 var ocultosData = {};   // miembros (invitados especiales) ocultos por el admin: {key:true}       // {slot_id: {t:proximoIntento}}
 
 function ahora(){ return Date.now()+serverOffset; }
@@ -2852,6 +2868,7 @@ function iniciarFirebase() {
   db.ref("historial").on("value", function(s){ historialData = s.val()||{}; renderHistorial(); });
   db.ref(".info/serverTimeOffset").on("value", function(s){ serverOffset = s.val()||0; });
   db.ref("sesionInvitados").on("value", function(s){ sesionInv = s.val()||null; sesionListo = true; renderTodo(); });
+  db.ref("preparadas").on("value", function(s){ preparadasData = s.val()||{}; renderPreparadas(); });
   db.ref("miembrosOcultos").on("value", function(s){ ocultosData = s.val()||{}; renderTodo(); });
   db.ref("invitadosEspeciales").on("value", function(s){ invitadosEspData = s.val()||{}; espListo = true; renderTodo(); });
   db.ref("invitadosSesion").on("value", function(s){ invitadosData = s.val()||{}; invListo = true; renderTodo(); });
@@ -3501,6 +3518,88 @@ function borrarHuerfanos(slot){
   if(!confirm("¿Borrar de la pantalla el voto de: "+hu.map(function(h){return h.nombre;}).join(", ")+"?\n\nLos votos ya guardados en el historial no se tocan.")) return;
   hu.forEach(function(h){ db.ref("votos/"+slot+"/"+h.key).set(null); });
 }
+/* ══════════ VOTACIONES PREPARADAS ══════════ */
+function renderPrepOpciones(){
+  var el = document.getElementById("prep-opciones");
+  if(!el) return;
+  var h = '<div class="criterios" style="margin-bottom:.5rem;">';
+  ["simple","absoluta","dos-tercios"].forEach(function(cc){
+    h += '<button class="crit-btn'+(cc===prepCrit?" activo-"+(cc==="dos-tercios"?"dos":cc):"")+'" onclick="prepElegirCrit(\''+cc+'\')">'+CRITERIOS[cc].label+'</button>';
+  });
+  h += '</div><div class="dur-fila" style="margin-top:0;"><span class="dur-label">⏱ Tiempo:</span>';
+  [0,3,5,10,15].forEach(function(m){
+    h += '<button class="crit-btn'+(prepMin===m?" activo-simple":"")+'" onclick="prepElegirMin('+m+')">'+(m===0?"Sin límite":m+" min")+'</button>';
+  });
+  h += '</div><div class="dur-label" style="margin-top:.4rem;">Lo que elijas aquí se aplica a las que agregues ahora. Después puedes cambiarlo en cada una.</div>';
+  el.innerHTML = h;
+}
+function prepElegirCrit(c){ prepCrit = c; renderPrepOpciones(); }
+function prepElegirMin(m){ prepMin = m; renderPrepOpciones(); }
+
+function agregarPreparadas(){
+  if(!db) return;
+  var ta = document.getElementById("prep-texto");
+  var lineas = (ta.value||"").split("\n").map(function(l){return l.trim();}).filter(function(l){return l.length>0;});
+  if(!lineas.length){ alert("Escribe al menos una votación."); return; }
+  var base = Date.now();
+  lineas.forEach(function(tema, i){
+    var ord = base + i;
+    db.ref("preparadas/p"+ord).set({tema:tema, criterio:prepCrit, min:prepMin, ord:ord});
+  });
+  ta.value = "";
+}
+
+function prepOrdenadas(){
+  return Object.keys(preparadasData).sort(function(a,b){ return (preparadasData[a].ord||0)-(preparadasData[b].ord||0); });
+}
+
+function renderPreparadas(){
+  var el = document.getElementById("prep-lista");
+  if(!el) return;
+  var ids = prepOrdenadas();
+  if(!ids.length){ el.innerHTML = '<div style="color:#444;font-size:.8rem;margin-top:.5rem;">No hay votaciones preparadas.</div>'; return; }
+  el.innerHTML = ids.map(function(id, i){
+    var it = preparadasData[id];
+    var crOpts = ["simple","absoluta","dos-tercios"].map(function(cc){ return '<option value="'+cc+'"'+((it.criterio||"simple")===cc?" selected":"")+'>'+CRITERIOS[cc].label+'</option>'; }).join("");
+    var mOpts = [0,3,5,10,15].map(function(m){ return '<option value="'+m+'"'+((it.min||0)===m?" selected":"")+'>'+(m===0?"Sin límite":m+" min")+'</option>'; }).join("");
+    return '<div class="prep-item'+(i===0?" sig":"")+'">'+
+      '<div class="n">'+(i+1)+'</div>'+
+      '<div class="t">'+esc(it.tema)+(i===0?' <span style="font-size:.68rem;color:#A31C41;">(siguiente)</span>':'')+'</div>'+
+      '<select class="prep-sel" onchange="prepCambiar(\''+id+'\',\'criterio\',this.value)">'+crOpts+'</select>'+
+      '<select class="prep-sel" onchange="prepCambiar(\''+id+'\',\'min\',this.value)">'+mOpts+'</select>'+
+      '<button class="btn-a btn-abrir" style="padding:.4rem .9rem;font-size:.8rem;" onclick="abrirPreparada(\''+id+'\')">Abrir</button>'+
+      '<button class="btn-a btn-neutro" style="padding:.4rem .7rem;font-size:.8rem;" onclick="quitarPreparada(\''+id+'\')">✕</button>'+
+      '</div>';
+  }).join("");
+}
+
+function prepCambiar(id, campo, valor){
+  if(!db||!preparadasData[id]) return;
+  db.ref("preparadas/"+id+"/"+campo).set(campo==="min" ? (parseInt(valor,10)||0) : valor);
+}
+function quitarPreparada(id){
+  var it = preparadasData[id];
+  if(!db||!it) return;
+  if(!confirm("¿Quitar de la lista: "+it.tema+"?")) return;
+  db.ref("preparadas/"+id).set(null);
+}
+function abrirPreparada(id){
+  var it = preparadasData[id];
+  if(!db||!it) return;
+  // primera pantalla libre: primero las que están en espera, luego las ya cerradas
+  var slot = SLOTS.filter(function(sl){ var e=estadoSlots[sl]; return !e || e.estado==="espera"; })[0]
+          || SLOTS.filter(function(sl){ var e=estadoSlots[sl]; return e && e.estado==="cerrada"; })[0];
+  if(!slot){ alert("Las 3 pantallas tienen una votación abierta. Cierra una primero."); return; }
+  var e0 = estadoSlots[slot];
+  if(e0 && e0.estado==="cerrada" && !confirm("La "+SLOT_LABEL[slot]+" ya está cerrada y se va a reemplazar (su resultado queda en el historial). ¿Abrir aquí?")) return;
+  var datos = {tema:it.tema, estado:"abierta", id:Date.now().toString(), criterio:it.criterio||"simple"};
+  var min = it.min||0;
+  if(min>0){ datos.duracion = min; datos.finTs = ahora()+min*60000; }
+  db.ref("votos/"+slot).set(null);
+  db.ref("votaciones/"+slot).set(datos);
+  db.ref("preparadas/"+id).set(null);
+}
+
 function elegirDuracion(slot, m){
   duracionPorSlot[slot] = m;
   renderAdminSlots();
@@ -3907,7 +4006,7 @@ window.onload = function() {
   }
   document.getElementById("logo-votar-inv").src = "data:image/png;base64," + LOGO_B64;
   iniciarFirebase();
-  renderIdentidadLista(); renderPinLista();
+  renderIdentidadLista(); renderPinLista(); renderPrepOpciones(); renderPreparadas();
   document.getElementById("logo-votar-pin").src = "data:image/png;base64," + LOGO_B64;
   var params=new URLSearchParams(window.location.search);
   var modo=params.get("modo"), cargoParam=params.get("cargo"), invParam=params.get("invitado"), espParam=params.get("especial");
